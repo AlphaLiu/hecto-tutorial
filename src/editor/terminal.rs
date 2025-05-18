@@ -1,11 +1,11 @@
 use crossterm::cursor::{Hide, MoveTo, Show};
 use crossterm::style::Print;
 use crossterm::terminal::{
-    Clear, ClearType, EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode,
-    enable_raw_mode, size,
+    disable_raw_mode, enable_raw_mode, size, Clear, ClearType, EnterAlternateScreen,
+    LeaveAlternateScreen,
 };
-use crossterm::{Command, queue};
-use std::io::{Error, Write, stdout};
+use crossterm::{queue, Command};
+use std::io::{stdout, Error, Write};
 
 #[derive(Default, Copy, Clone)]
 pub struct Size {
