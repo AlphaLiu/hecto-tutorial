@@ -1,8 +1,8 @@
 use crossterm::cursor::{Hide, MoveTo, Show};
-use crossterm::style::Print;
+use crossterm::style::{Attribute, Print};
 use crossterm::terminal::{
-    Clear, ClearType, EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode,
-    enable_raw_mode, size,
+    Clear, ClearType, DisableLineWrap, EnableLineWrap, EnterAlternateScreen, LeaveAlternateScreen,
+    SetTitle, disable_raw_mode, enable_raw_mode, size,
 };
 use crossterm::{Command, queue};
 use std::io::{Error, Write, stdout};
@@ -38,6 +38,7 @@ pub struct Terminal;
 impl Terminal {
     pub fn terminate() -> Result<(), Error> {
         Self::leave_alternate_screen()?;
+        Self::enable_line_wrap()?;
         Self::show_caret()?;
         Self::execute()?;
         disable_raw_mode()?;
@@ -46,6 +47,7 @@ impl Terminal {
     pub fn initialize() -> Result<(), Error> {
         enable_raw_mode()?;
         Self::enter_alternate_screen()?;
+        Self::disable_line_wrap()?;
         Self::clear_screen()?;
         Self::execute()?;
         Ok(())
@@ -83,9 +85,33 @@ impl Terminal {
         Self::queue_command(Show)?;
         Ok(())
     }
+    pub fn disable_line_wrap() -> Result<(), Error> {
+        Self::queue_command(DisableLineWrap)?;
+        Ok(())
+    }
+    pub fn enable_line_wrap() -> Result<(), Error> {
+        Self::queue_command(EnableLineWrap)?;
+        Ok(())
+    }
+    pub fn set_title(title: &str) -> Result<(), Error> {
+        Self::queue_command(SetTitle(title))?;
+        Ok(())
+    }
     pub fn print(string: &str) -> Result<(), Error> {
         Self::queue_command(Print(string))?;
         Ok(())
+    }
+    pub fn print_inverted_row(row: usize, line_text: &str) -> Result<(), Error> {
+        let width = Self::size()?.width;
+        Self::print_row(
+            row,
+            &format!(
+                "{}{:width$.width$}{}",
+                Attribute::Reverse,
+                line_text,
+                Attribute::Reset
+            ),
+        )
     }
     pub fn print_row(row: usize, line_text: &str) -> Result<(), Error> {
         Self::move_caret_to(Position { row, col: 0 })?;

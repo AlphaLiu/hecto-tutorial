@@ -3,15 +3,14 @@ use std::cmp::min;
 use self::line::Line;
 
 use super::{
-    DocumentStatus,
+    DocumentStatus, NAME, VERSION,
     editorcommand::{Direction, EditorCommand},
     terminal::{Position, Size, Terminal},
 };
 mod buffer;
 use buffer::Buffer;
 mod line;
-const NAME: &str = env!("CARGO_PKG_NAME");
-const VERSION: &str = env!("CARGO_PKG_VERSION");
+
 #[derive(Copy, Clone, Default)]
 pub struct Location {
     pub grapheme_index: usize,
@@ -21,6 +20,7 @@ pub struct View {
     buffer: Buffer,
     needs_redraw: bool,
     size: Size,
+    margin_bottom: usize,
     text_location: Location,
     scroll_offset: Position,
 }
@@ -35,18 +35,21 @@ impl View {
                 width: terminal_size.width,
                 height: terminal_size.height.saturating_sub(margin_bottom),
             },
+            margin_bottom,
             text_location: Location::default(),
             scroll_offset: Position::default(),
         }
     }
+
     pub fn get_status(&self) -> DocumentStatus {
         DocumentStatus {
             total_lines: self.buffer.height(),
-            current_line: self.text_location.line_index,
-            file_name: self.buffer.file_name.clone(),
+            current_line_index: self.text_location.line_index,
+            file_name: format!("{}", self.buffer.file_info),
             is_modified: self.buffer.dirty,
         }
     }
+
     // region: file i/o
     pub fn load(&mut self, file_name: &str) {
         if let Ok(buffer) = Buffer::load(file_name) {
@@ -58,8 +61,10 @@ impl View {
     fn save(&mut self) {
         let _ = self.buffer.save();
     }
+
     // endregion
 
+    // region: command handling
     pub fn handle_command(&mut self, command: EditorCommand) {
         match command {
             EditorCommand::Resize(size) => self.resize(size),
@@ -74,10 +79,14 @@ impl View {
     }
 
     fn resize(&mut self, to: Size) {
-        self.size = to;
+        self.size = Size {
+            width: to.width,
+            height: to.height.saturating_sub(self.margin_bottom),
+        };
         self.scroll_text_location_into_view();
         self.needs_redraw = true;
     }
+    // endregion
     // region: Text editing
     fn insert_newline(&mut self) {
         self.buffer.insert_newline(self.text_location);
@@ -100,7 +109,6 @@ impl View {
             .lines
             .get(self.text_location.line_index)
             .map_or(0, Line::grapheme_count);
-
         self.buffer.insert_char(character, self.text_location);
         let new_len = self
             .buffer
@@ -109,7 +117,7 @@ impl View {
             .map_or(0, Line::grapheme_count);
         let grapheme_delta = new_len.saturating_sub(old_len);
         if grapheme_delta > 0 {
-            // move right for an added grapheme (should be the regular case)
+            //move right for an added grapheme (should be the regular case)
             self.move_text_location(Direction::Right);
         }
         self.needs_redraw = true;
@@ -119,7 +127,7 @@ impl View {
     // region: Rendering
 
     pub fn render(&mut self) {
-        if !self.needs_redraw {
+        if !self.needs_redraw || self.size.height == 0 {
             return;
         }
         let Size { height, width } = self.size;
@@ -151,21 +159,16 @@ impl View {
     }
     fn build_welcome_message(width: usize) -> String {
         if width == 0 {
-            return " ".to_string();
+            return String::new();
         }
         let welcome_message = format!("{NAME} editor -- version {VERSION}");
         let len = welcome_message.len();
-        if width <= len {
+        let remaining_width = width.saturating_sub(1);
+        // hide the welcome message if it doesn't fit entirely.
+        if remaining_width < len {
             return "~".to_string();
         }
-        // we allow this since we don't care if our welcome message is put _exactly_ in the middle.
-        // it's allowed to be a bit to the left or right.
-        #[allow(clippy::integer_division)]
-        let padding = (width.saturating_sub(len).saturating_sub(1)) / 2;
-
-        let mut full_message = format!("~{}{}", " ".repeat(padding), welcome_message);
-        full_message.truncate(width);
-        full_message
+        format!("{:<1}{:^remaining_width$}", "~", welcome_message)
     }
     // endregion
 
@@ -197,7 +200,6 @@ impl View {
         } else {
             false
         };
-
         if offset_changed {
             self.needs_redraw = true;
         }
