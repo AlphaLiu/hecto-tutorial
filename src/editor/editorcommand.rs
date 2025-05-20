@@ -21,6 +21,7 @@ pub enum EditorCommand {
     Backspace,
     Delete,
     Enter,
+    Save,
 }
 // clippy::as_conversions: Will run into problems for rare edge case systems where usize < u16
 #[allow(clippy::as_conversions)]
@@ -35,6 +36,7 @@ impl TryFrom<Event> for EditorCommand {
                 (KeyCode::Char(character), KeyModifiers::NONE | KeyModifiers::SHIFT) => {
                     Ok(Self::Insert(character))
                 }
+                (KeyCode::Char('s'), KeyModifiers::CONTROL) => Ok(Self::Save),
                 (KeyCode::Tab, _) => Ok(Self::Insert('\t')),
                 (KeyCode::Enter, _) => Ok(Self::Enter),
                 (KeyCode::Up, _) => Ok(Self::Move(Direction::Up)),
